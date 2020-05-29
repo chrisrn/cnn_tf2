@@ -1,0 +1,8 @@
+src/*.pyc
+tests/*.pyc
+src/__pycache_
+src/logs
+src/nets/__pycache___
+tests/__pycache__
+flower_photos
+venv
