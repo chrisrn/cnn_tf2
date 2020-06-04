@@ -52,10 +52,12 @@ class TestData:
     def test_weights_change(self):
 
         _, all_vars, trainable_vars, weights_before, weights_after = self.train_one_step()
-        # Make sure trainable weights are changed
+        # Make sure trainable weights are changed and non-trainable remain the same
         for b, a, v in zip(weights_before, weights_after, all_vars):
             if v in trainable_vars:
                 assert np.any(np.not_equal(b, a))
+            else:
+                assert np.all(np.equal(b, a))
 
     def test_loss_nonzero(self):
         history, _, _, _, _ = self.train_one_step()
