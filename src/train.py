@@ -29,7 +29,6 @@ def main(params_file):
 
     # Object to handle training and evaluation processes
     model_handler = ModelHandler(params['callbacks'],
-                                 params['more']['epochs_per_validation'],
                                  params['more']['gpus'])
 
     # Get hyper-parameters and construct experiments

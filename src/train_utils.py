@@ -29,13 +29,11 @@ class LRlogs(tf.keras.callbacks.Callback):
 class ModelHandler(object):
     def __init__(self,
                  callbacks,
-                 epochs_per_validation,
                  gpus):
         """
         Model parameters initialization
         Args:
             callbacks: <dict> with callbacks we want to activate
-            epochs_per_validation: <int> number of epochs per validation
             gpus: <int> number of gpus to utilize
         """
 
@@ -68,7 +66,6 @@ class ModelHandler(object):
         if os.path.exists(self.model_dir) and self.save_per_epoch:
             shutil.rmtree(self.model_dir)
 
-        self.epochs_per_validation = epochs_per_validation
         self.gpus = gpus
 
     def train_test_model(self, hparams, train_generator, val_generator):
@@ -104,7 +101,7 @@ class ModelHandler(object):
                             validation_data=val_generator,
                             steps_per_epoch=steps_per_epoch,
                             validation_steps=validation_steps,
-                            validation_freq=self.epochs_per_validation,
+                            validation_freq=1,
                             callbacks=callbacks)
 
         # Generate predictions (probabilities -- the output of the last layer)

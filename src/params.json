@@ -1,7 +1,7 @@
 {
  "hyper_parameters": {
    "batch_size": [64],
-   "epochs": [1],
+   "epochs": [10],
    "learning_rate": [0.001],
    "activation": ["relu"],
    "optimizer": ["adam"],
@@ -28,7 +28,6 @@
  },
  "more": {
    "gpus": 0,
-   "epochs_per_validation": 1,
    "fine-tuning-file": ""
 }
 }
