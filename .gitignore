@@ -1,8 +1,10 @@
 src/*.pyc
 tests/*.pyc
 src/__pycache_
-src/logs
-src/nets/__pycache___
+tests/.pytest_cache
 tests/__pycache__
+src/logs
+src/model
+src/nets/__pycache___
 flower_photos
 venv

@@ -4,10 +4,32 @@ import shutil
 import argparse
 
 
+def backspace_folders(classes, root_dir):
+    first_split_done = False
+    for split in os.listdir(root_dir):
+        split_path = os.path.join(root_dir, split)
+        for cls in classes:
+            source = os.path.join(split_path, cls)
+            if first_split_done:
+                dest = os.path.join(root_dir, cls)
+                for f in os.listdir(source):
+                    file_path = os.path.join(source, f)
+                    shutil.move(file_path, dest)
+            else:
+                shutil.move(source, root_dir)
+        first_split_done = True
+        shutil.rmtree(split_path)
+
+
 def main(args):
     # # Creating Train / Val / Test folders (One time use)
+
     root_dir = args.data_dir
-    classes = os.listdir(root_dir)
+    if 'train' in os.listdir(root_dir):
+        classes = os.listdir(os.path.join(root_dir, 'train'))
+        backspace_folders(classes, root_dir)
+    else:
+        classes = os.listdir(root_dir)
 
     val_ratio = args.val_ratio
     test_ratio = args.test_ratio
@@ -39,7 +61,7 @@ def main(args):
         val_files += len(val_FileNames)
         test_files += len(test_FileNames)
 
-        # Copy-pasting images
+        # Moving images
         for name in train_FileNames:
             shutil.move(name, root_dir +'/train/' + cls)
 
@@ -49,6 +71,11 @@ def main(args):
         for name in test_FileNames:
             shutil.move(name, root_dir +'/test/' + cls)
         shutil.rmtree(src)
+
+    if not val_files:
+        shutil.rmtree(root_dir +'/val')
+    if not test_files:
+        shutil.rmtree(root_dir +'/test')
 
     print('Total images: {}'.format(all_files))
     print('Training: {}'.format(train_files))

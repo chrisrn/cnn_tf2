@@ -1,7 +1,7 @@
 {
  "hyper_parameters": {
    "batch_size": [64],
-   "epochs": [10],
+   "epochs": [1],
    "learning_rate": [0.001],
    "activation": ["relu"],
    "optimizer": ["adam"],
@@ -9,24 +9,21 @@
    "preprocessing": ["mobilenet"]
  },
  "data": {
-   "data_dir": "../flower_photos",
-   "single_step": true,
-   "create_data": false,
-   "remove_outliers": true
+   "data_dir": "../flower_photos"
  },
  "callbacks": {
    "adaptive_learning_rate": false,
    "adaptive_lr_patience_epochs": 2,
    "adaptive_lr_decay": 0.4,
    "min_adaptive_lr": 0.000001,
-   "exponential_lr": false,
-   "num_epochs_per_decay": 2,
+   "exponential_lr": true,
+   "num_epochs_per_decay": 3,
    "lr_decay_factor": 0.4,
    "early_stopping": false,
    "early_stopping_min_change": 0,
    "early_stopping_patience_epochs": 4,
    "logdir": "logs",
-   "epochs_per_save": 100,
+   "save_per_epoch": false,
    "model_dir": "model"
  },
  "more": {

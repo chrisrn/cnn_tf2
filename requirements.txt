@@ -1,5 +1,6 @@
 tensorflow==2.2.0
 jupyter
+pytest
 matplotlib
 seaborn
 numpy

@@ -4,11 +4,13 @@ import matplotlib.pyplot as plt
 
 import os
 import shutil
+import numpy as np
 
 import tensorflow as tf
 from tensorboard.plugins.hparams import api as hp
+from tensorflow.keras.utils import multi_gpu_model
 
-from nets import inception_v3, mobilenet_v2
+from src.nets import inception_v3, mobilenet_v2, resnet
 
 
 # Class for learning rate view during training
@@ -27,12 +29,14 @@ class LRlogs(tf.keras.callbacks.Callback):
 class ModelHandler(object):
     def __init__(self,
                  callbacks,
-                 epochs_per_validation):
+                 epochs_per_validation,
+                 gpus):
         """
         Model parameters initialization
         Args:
             callbacks: <dict> with callbacks we want to activate
             epochs_per_validation: <int> number of epochs per validation
+            gpus: <int> number of gpus to utilize
         """
 
         # Training callbacks
@@ -60,26 +64,70 @@ class ModelHandler(object):
 
         # Model checkpoint
         self.model_dir = callbacks['model_dir']
-        self.epochs_per_save = callbacks['epochs_per_save']
+        self.save_per_epoch = callbacks['save_per_epoch']
+        if os.path.exists(self.model_dir) and self.save_per_epoch:
+            shutil.rmtree(self.model_dir)
 
         self.epochs_per_validation = epochs_per_validation
+        self.gpus = gpus
 
     def train_test_model(self, hparams, train_generator, val_generator):
         """
         Tf.keras model construction and fit
         Args:
             hparams: <dict> with parameters of training
-            x_test: <numpy> array of test data
-            input_shape: <list> of lstm input shape
-            train_set: <tf.data> train set
-            test_set: <tf.data> test set
+            train_generator: <tf generator> for train set
+            val_generator: <tf generator> for test set
 
-        Returns: <dict> of training and test loss, <numpy> array of predictions on test set
+        Returns: <dict> of training history,
+                 <numpy array> of predictions on test set,
+                 <dict> of metrics on test set
+
+        """
+        num_classes = train_generator.num_classes
+        model = self.get_model(hparams['network'], num_classes)
+        if self.gpus:
+            model = multi_gpu_model(model, self.gpus)
+
+        print('Number of trainable variables = {}'.format(len(model.trainable_variables)))
+
+        optimizer = self.get_optimizer(hparams['optimizer'])(hparams['learning_rate'])
+        model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics='accuracy')
+
+        # model.summary()
+        callbacks = self.get_callbacks()
+
+        steps_per_epoch = train_generator.n // hparams['batch_size']
+        validation_steps = val_generator.n // hparams['batch_size']
+        history = model.fit(train_generator,
+                            epochs=hparams['epochs'],
+                            validation_data=val_generator,
+                            steps_per_epoch=steps_per_epoch,
+                            validation_steps=validation_steps,
+                            validation_freq=self.epochs_per_validation,
+                            callbacks=callbacks)
+
+        # Generate predictions (probabilities -- the output of the last layer)
+        # on new data using `predict`
+
+        print('Generate predictions')
+        predictions = model.predict(val_generator)
+        print('predictions shape:', predictions.shape)
+        test_metrics = model.evaluate(val_generator, return_dict=True)
+        return history.history, predictions, test_metrics
+
+    def get_model(self, network, num_classes):
+        """
+
+        Args:
+            network: <str> network name
+            num_classes: <int> number of output classes
+
+        Returns:
 
         """
 
-        num_classes = train_generator.num_classes
-        if hparams['network'] == 'inception_v3':
+        if network == 'inception_v3':
             model = inception_v3.InceptionV3(include_top=True,
                                              weights=None,
                                              input_tensor=None,
@@ -87,6 +135,30 @@ class ModelHandler(object):
                                              pooling=None,
                                              classes=num_classes,
                                              classifier_activation='softmax')
+        elif network == 'resnet_50':
+            model = resnet.ResNet50(include_top=True,
+                                    weights=None,
+                                    input_tensor=None,
+                                    input_shape=None,
+                                    pooling=None,
+                                    classes=num_classes,
+                                    classifier_activation='softmax')
+        elif network == 'resnet_101':
+            model = resnet.ResNet101(include_top=True,
+                                     weights=None,
+                                     input_tensor=None,
+                                     input_shape=None,
+                                     pooling=None,
+                                     classes=num_classes,
+                                     classifier_activation='softmax')
+        elif network == 'resnet_152':
+            model = resnet.ResNet152(include_top=True,
+                                     weights=None,
+                                     input_tensor=None,
+                                     input_shape=None,
+                                     pooling=None,
+                                     classes=num_classes,
+                                     classifier_activation='softmax')
         else:
             base_model = mobilenet_v2.MobileNetV2(input_shape=None,
                                                   alpha=1.0,
@@ -103,32 +175,7 @@ class ModelHandler(object):
                 tf.keras.layers.GlobalAveragePooling2D(),
                 tf.keras.layers.Dense(num_classes, activation='softmax')
             ])
-
-        print('Number of trainable variables = {}'.format(len(model.trainable_variables)))
-
-        optimizer = self.get_optimizer(hparams['optimizer'])(hparams['learning_rate'])
-        model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics='accuracy')
-
-        # model.summary()
-        callbacks = self.get_callbacks()
-
-        steps_per_epoch = train_generator.n // hparams['batch_size']
-        validation_steps = val_generator.n // hparams['batch_size']
-        history = model.fit_generator(train_generator,
-                                      epochs=hparams['epochs'],
-                                      validation_data=val_generator,
-                                      steps_per_epoch=steps_per_epoch,
-                                      validation_steps=validation_steps,
-                                      validation_freq=self.epochs_per_validation,
-                                      callbacks=callbacks)
-
-        # Generate predictions (probabilities -- the output of the last layer)
-        # on new data using `predict`
-        print('Generate predictions')
-        predictions = model.predict(val_generator)
-        print('predictions shape:', predictions.shape)
-        test_metrics = model.evaluate(val_generator, return_dict=True)
-        return history.history, predictions, test_metrics
+        return model
 
     def get_callbacks(self):
         """
@@ -156,14 +203,14 @@ class ModelHandler(object):
                                                               restore_best_weights=False)
             callbacks.append(early_stopping)
 
-        if self.epochs_per_save:
+        if self.save_per_epoch:
             print('***** Model checkpoint callback activated *****')
-            save_freq = self.epochs_per_save
-            filepath = os.path.join(self.model_dir, "saved-model-{epoch:02d}.hdf5")
-            ckpt = tf.keras.callbacks.ModelCheckpoint(filepath, monitor='val_loss', verbose=0,
-                                                      save_best_only=False,
-                                                      save_weights_only=False,
-                                                      mode='auto', period=save_freq)
+            filepath = os.path.join(self.model_dir, "cp-{epoch:04d}.ckpt")
+            ckpt = tf.keras.callbacks.ModelCheckpoint(filepath,
+                                                      monitor='val_acc',
+                                                      verbose=1,
+                                                      save_weights_only=True,
+                                                      save_freq='epoch')
             callbacks.append(ckpt)
 
         if self.exponential_lr:
@@ -235,23 +282,29 @@ def get_train_params(args):
 
     # Optimizer
     optimizer = args['optimizer']
+    if not any(opt in ['adam', 'sgd', 'adagrad', 'adadelta', 'rmsprop'] for opt in optimizer):
+        raise ValueError('Available optimizers: adam, sgd, adagrad, adadelta, rmsprop')
     optimizer = hp.HParam('optimizer', hp.Discrete(optimizer))
     hparams.append(optimizer)
 
     # Activation function in each layer
     activation = args['activation']
     if not any(act in ['relu', 'sigmoid', 'tanh'] for act in activation):
-        raise ValueError('You should feed for activation: relu, sigmoid or tanh')
+        raise ValueError('Available activations: relu, sigmoid or tanh')
     activation = hp.HParam('activation', hp.Discrete(activation))
     hparams.append(activation)
 
     # Network
     network = args['network']
+    if not any(nn in ['inception_v3', 'resnet_50', 'resnet_101', 'resnet_152', 'mobilenet_v2'] for nn in network):
+        raise ValueError('Available networks: inception_v3, resnet_50, resnet_101, resnet_152, mobilenet_v2')
     network = hp.HParam('network', hp.Discrete(network))
     hparams.append(network)
 
     # Pre-processing
     preprocessing = args['preprocessing']
+    if not any(pp in ['inception', 'resnet', 'mobilenet'] for pp in preprocessing):
+        raise ValueError('Available preprocessings: inception, resnet, mobilenet')
     preprocessing = hp.HParam('preprocessing', hp.Discrete(preprocessing))
     hparams.append(preprocessing)
 
@@ -278,8 +331,8 @@ def plot_metric(best_train, best_val, metric='accuracy'):
 
     """
 
-    plt.plot(best_train, label='Training {}'.format(metric))
-    plt.plot(best_val, label='Validation {}'.format(metric))
+    plt.plot(best_train, label='Training')
+    plt.plot(best_val, label='Validation')
     plt.title('{}: {}'.format(metric, best_val[-1]))
     plt.tight_layout()
     plt.legend()

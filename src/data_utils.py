@@ -47,6 +47,13 @@ class DataHandler(object):
                                                        horizontal_flip='true')
             # Generator for our validation data
             validation_image_generator = ImageDataGenerator(rescale=1. / 255)
+        elif preprocessing == 'resnet':
+            IMG_HEIGHT, IMG_WIDTH = 224, 224
+            # Generator for our training data
+            train_image_generator = ImageDataGenerator(rescale=1./255,
+                                                       horizontal_flip='true')
+            # Generator for our validation data
+            validation_image_generator = ImageDataGenerator(rescale=1. / 255)
         else:
             IMG_HEIGHT, IMG_WIDTH = 224, 224
 

@@ -1,62 +1,57 @@
 import pytest
-import pandas as pd
-import numpy as np
 import json
+import numpy as np
 
-from src.data_utils import DataHandler
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-
-def get_data_handler():
-    # Get params to create data object
-    params_file = '../src/params.json'
-    with open(params_file) as json_file:
-        params = json.load(json_file)
-
-    # Object to test data
-    data_handler = DataHandler(params['data'], params['train']['batch_size'])
-    return data_handler
+from src.train_utils import ModelHandler
 
 
 @pytest.fixture(scope='class')
-def data_constructor(request):
-    # Data-frames for distance and cartesians computation
-    request.cls.distance_row = pd.DataFrame({'source_latitude': [-12.088156],
-                                             'source_longitude': [-77.016065],
-                                             'destination_latitude': [-12.108531],
-                                             'destination_longitude': [-77.044891]}).iloc[0]
+def constructor(request):
 
-    request.cls.cartesian_row = pd.DataFrame({'source_latitude': [-12.088156],
-                                              'source_longitude': [-77.016065]}).iloc[0]
+    with open('params_test.json') as json_file:
+        params = json.load(json_file)
+    request.cls.params = params
 
-    # Approximate radius of earth in km
-    request.cls.R = 6373.0
+    # Get generator for toy data
+    IMG_HEIGHT, IMG_WIDTH = 224, 224
+    train_dir = params['data']['data_dir']
+    train_image_generator = ImageDataGenerator(rescale=1. / 255)
+    request.cls.train_data_gen = train_image_generator.flow_from_directory(batch_size=2,
+                                                                           directory=train_dir,
+                                                                           shuffle=True,
+                                                                           target_size=(IMG_HEIGHT, IMG_WIDTH),
+                                                                           class_mode='categorical')
 
-    # Data handler object
-    request.cls.data_handler = get_data_handler()
+    # Get model
+    request.cls.model_handler = ModelHandler(params['callbacks'],
+                                             params['more']['epochs_per_validation'],
+                                             params['more']['gpus'])
 
 
-@pytest.mark.usefixtures('data_constructor')
+@pytest.mark.usefixtures('constructor')
 class TestData:
-    def test_distance(self):
-        distance = self.data_handler.add_distance(self.distance_row)
+    def test_backpropagation(self):
+        params = self.params['hyper_parameters']
+        num_classes = self.train_data_gen.num_classes
 
-        expected_distance = 3.86846
-        assert distance == pytest.approx(expected_distance, 0.00001)
+        model = self.model_handler.get_model(params['network'][0], num_classes)
+        optimizer = self.model_handler.get_optimizer(params['optimizer'][0])(params['learning_rate'][0])
 
-    def test_x_cartesian(self):
-        x_coordinate = self.data_handler.add_x(self.cartesian_row, 'source', self.R)
+        weights_before = model.get_weights()
+        model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics='accuracy')
+        model.fit(self.train_data_gen,
+                  steps_per_epoch=1)
+        weights_after = model.get_weights()
 
-        expected_x = 1400.1224
-        assert x_coordinate == pytest.approx(expected_x, 0.0001)
+        all_vars = [var.name for var in model.variables]
+        trainable_vars = [var.name for var in model.trainable_variables]
 
-    def test_y_cartesian(self):
-        y_coordinate = self.data_handler.add_y(self.cartesian_row, 'source', self.R)
+        # Make sure trainable weights are changed
+        for b, a, v in zip(weights_before, weights_after, all_vars):
+            if v in trainable_vars:
+                assert np.any(np.not_equal(b, a))
 
-        expected_y = -6072.3636
-        assert y_coordinate == pytest.approx(expected_y, 0.0001)
 
-    def test_z_cartesian(self):
-        z_coordinate = self.data_handler.add_z(self.cartesian_row, 'source', self.R)
 
-        expected_z = -1334.6109
-        assert z_coordinate == pytest.approx(expected_z, 0.0001)
