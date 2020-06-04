@@ -23,7 +23,7 @@
    "early_stopping_min_change": 0,
    "early_stopping_patience_epochs": 4,
    "logdir": "logs",
-   "save_per_epoch": false,
+   "save_per_epoch": true,
    "model_dir": "model"
  },
  "more": {

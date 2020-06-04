@@ -202,11 +202,10 @@ class ModelHandler(object):
 
         if self.save_per_epoch:
             print('***** Model checkpoint callback activated *****')
-            filepath = os.path.join(self.model_dir, "cp-{epoch:04d}.ckpt")
-            ckpt = tf.keras.callbacks.ModelCheckpoint(filepath,
+            ckpt = tf.keras.callbacks.ModelCheckpoint(self.model_dir,
                                                       monitor='val_acc',
                                                       verbose=1,
-                                                      save_weights_only=True,
+                                                      save_weights_only=False,
                                                       save_freq='epoch')
             callbacks.append(ckpt)
 
